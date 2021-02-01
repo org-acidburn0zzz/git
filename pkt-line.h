@@ -5,6 +5,13 @@
 #include "strbuf.h"
 #include "sideband.h"
 
+#define LARGE_PACKET_MAX 65520
+#define LARGE_PACKET_DATA_MAX (LARGE_PACKET_MAX - 4)
+
+struct packet_scratch_space {
+	char buffer[LARGE_PACKET_MAX];
+};
+
 /*
  * Write a packetized stream, where each line is preceded by
  * its length (including the header) as a 4-byte hex number.
@@ -213,8 +220,7 @@ enum packet_read_status packet_reader_read(struct packet_reader *reader);
 enum packet_read_status packet_reader_peek(struct packet_reader *reader);
 
 #define DEFAULT_PACKET_MAX 1000
-#define LARGE_PACKET_MAX 65520
-#define LARGE_PACKET_DATA_MAX (LARGE_PACKET_MAX - 4)
+
 extern char packet_buffer[LARGE_PACKET_MAX];
 
 struct packet_writer {
