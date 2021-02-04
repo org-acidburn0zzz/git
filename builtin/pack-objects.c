@@ -1214,9 +1214,9 @@ static int want_found_object(const struct object_id *oid, int exclude,
 		 */
 		unsigned flags = 0;
 		if (ignore_packed_keep_on_disk)
-			flags |= ON_DISK_KEEP_PACKS;
+			flags |= CACHE_ON_DISK_KEEP_PACKS;
 		if (ignore_packed_keep_in_core)
-			flags |= IN_CORE_KEEP_PACKS;
+			flags |= CACHE_IN_CORE_KEEP_PACKS;
 
 		if (ignore_packed_keep_on_disk && p->pack_keep)
 			return 0;
@@ -3080,7 +3080,7 @@ static void read_packs_list_from_stdin(void)
 	 * an optimization during delta selection.
 	 */
 	revs.no_kept_objects = 1;
-	revs.keep_pack_cache_flags |= IN_CORE_KEEP_PACKS;
+	revs.keep_pack_cache_flags |= CACHE_IN_CORE_KEEP_PACKS;
 	revs.blob_objects = 1;
 	revs.tree_objects = 1;
 	revs.tag_objects = 1;
