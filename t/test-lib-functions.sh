@@ -16,6 +16,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see http://www.gnu.org/licenses/ .
 
+# Include sub-libraries of test-lib-functions.sh, split out for
+# readability.
+. "$TEST_DIRECTORY/test-lib-functions/debug.sh"
+. "$TEST_DIRECTORY/test-lib-functions/path.sh"
+. "$TEST_DIRECTORY/test-lib-functions/text.sh"
+
 # The semantics of the editor variables are that of invoking
 # sh -c "$EDITOR \"$@\"" files ...
 #
@@ -30,11 +36,6 @@ test_set_editor () {
 	export FAKE_EDITOR
 	EDITOR='"$FAKE_EDITOR"'
 	export EDITOR
-}
-
-test_set_index_version () {
-    GIT_INDEX_VERSION="$1"
-    export GIT_INDEX_VERSION
 }
 
 test_decode_color () {
@@ -84,44 +85,7 @@ test_decode_color () {
 	'
 }
 
-lf_to_nul () {
-	perl -pe 'y/\012/\000/'
-}
 
-nul_to_q () {
-	perl -pe 'y/\000/Q/'
-}
-
-q_to_nul () {
-	perl -pe 'y/Q/\000/'
-}
-
-q_to_cr () {
-	tr Q '\015'
-}
-
-q_to_tab () {
-	tr Q '\011'
-}
-
-qz_to_tab_space () {
-	tr QZ '\011\040'
-}
-
-append_cr () {
-	sed -e 's/$/Q/' | tr Q '\015'
-}
-
-remove_cr () {
-	tr '\015' Q | sed -e 's/Q$//'
-}
-
-# Generate an output of $1 bytes of all zeroes (NULs, not ASCII zeroes).
-# If $1 is 'infinity', output forever or until the receiving pipe stops reading,
-# whichever comes first.
-generate_zero_bytes () {
-	test-tool genzeros "$@"
-}
 
 # In some bourne shell implementations, the "unset" builtin returns
 # nonzero status when a variable to be unset was not set in the first
@@ -144,38 +108,6 @@ test_tick () {
 	GIT_COMMITTER_DATE="$test_tick -0700"
 	GIT_AUTHOR_DATE="$test_tick -0700"
 	export GIT_COMMITTER_DATE GIT_AUTHOR_DATE
-}
-
-# Stop execution and start a shell. This is useful for debugging tests.
-#
-# Be sure to remove all invocations of this command before submitting.
-
-test_pause () {
-	"$SHELL_PATH" <&6 >&5 2>&7
-}
-
-# Wrap git with a debugger. Adding this to a command can make it easier
-# to understand what is going on in a failing test.
-#
-# Examples:
-#     debug git checkout master
-#     debug --debugger=nemiver git $ARGS
-#     debug -d "valgrind --tool=memcheck --track-origins=yes" git $ARGS
-debug () {
-	case "$1" in
-	-d)
-		GIT_DEBUGGER="$2" &&
-		shift 2
-		;;
-	--debugger=*)
-		GIT_DEBUGGER="${1#*=}" &&
-		shift 1
-		;;
-	*)
-		GIT_DEBUGGER=1
-		;;
-	esac &&
-	GIT_DEBUGGER="${GIT_DEBUGGER}" "$@" <&6 >&5 2>&7
 }
 
 # Usage: test_commit [options] <message> [<file> [<contents> [<tag>]]]
@@ -392,25 +324,6 @@ test_commit_bulk () {
 		git -C "$indir" checkout -f HEAD || return 1
 	fi
 
-}
-
-# This function helps systems where core.filemode=false is set.
-# Use it instead of plain 'chmod +x' to set or unset the executable bit
-# of a file in the working directory and add it to the index.
-
-test_chmod () {
-	chmod "$@" &&
-	git update-index --add "--chmod=$@"
-}
-
-# Get the modebits from a file or directory, ignoring the setgid bit (g+s).
-# This bit is inherited by subdirectories at their creation. So we remove it
-# from the returning string to prevent callers from having to worry about the
-# state of the bit in the test directory.
-#
-test_modebits () {
-	ls -ld "$1" | sed -e 's|^\(..........\).*|\1|' \
-			  -e 's|^\(......\)S|\1-|' -e 's|^\(......\)s|\1x|'
 }
 
 # Unset a configuration variable, but don't fail if it doesn't exist.
@@ -741,93 +654,6 @@ test_external_without_stderr () {
 	fi
 }
 
-# debugging-friendly alternatives to "test [-f|-d|-e]"
-# The commands test the existence or non-existence of $1. $2 can be
-# given to provide a more precise diagnosis.
-test_path_is_file () {
-	if ! test -f "$1"
-	then
-		echo "File $1 doesn't exist. $2"
-		false
-	fi
-}
-
-test_path_is_dir () {
-	if ! test -d "$1"
-	then
-		echo "Directory $1 doesn't exist. $2"
-		false
-	fi
-}
-
-test_path_exists () {
-	if ! test -e "$1"
-	then
-		echo "Path $1 doesn't exist. $2"
-		false
-	fi
-}
-
-# Check if the directory exists and is empty as expected, barf otherwise.
-test_dir_is_empty () {
-	test_path_is_dir "$1" &&
-	if test -n "$(ls -a1 "$1" | egrep -v '^\.\.?$')"
-	then
-		echo "Directory '$1' is not empty, it contains:"
-		ls -la "$1"
-		return 1
-	fi
-}
-
-# Check if the file exists and has a size greater than zero
-test_file_not_empty () {
-	if ! test -s "$1"
-	then
-		echo "'$1' is not a non-empty file."
-		false
-	fi
-}
-
-test_path_is_missing () {
-	if test -e "$1"
-	then
-		echo "Path exists:"
-		ls -ld "$1"
-		if test $# -ge 1
-		then
-			echo "$*"
-		fi
-		false
-	fi
-}
-
-# test_line_count checks that a file has the number of lines it
-# ought to. For example:
-#
-#	test_expect_success 'produce exactly one line of output' '
-#		do something >output &&
-#		test_line_count = 1 output
-#	'
-#
-# is like "test $(wc -l <output) = 1" except that it passes the
-# output through when the number of lines is wrong.
-
-test_line_count () {
-	if test $# != 3
-	then
-		BUG "not 3 parameters to test_line_count"
-	elif ! test $(wc -l <"$3") "$1" "$2"
-	then
-		echo "test_line_count: line count for $3 !$1 $2"
-		cat "$3"
-		return 1
-	fi
-}
-
-test_file_size () {
-	test-tool path-utils file-size "$1"
-}
-
 # Returns success if a comma separated string of keywords ($1) contains a
 # given keyword ($2).
 # Examples:
@@ -997,6 +823,7 @@ test_expect_code () {
 # - not all diff versions understand "-u"
 
 test_cmp () {
+	test "$#" -ne 2 && BUG "2 param"
 	eval "$GIT_TEST_CMP" '"$@"'
 }
 
@@ -1026,6 +853,7 @@ test_cmp_config () {
 # test_cmp_bin - helper to compare binary files
 
 test_cmp_bin () {
+	test "$#" -ne 2 && BUG "2 param"
 	cmp "$@"
 }
 
@@ -1082,19 +910,6 @@ verbose () {
 	return 1
 }
 
-# Check if the file expected to be empty is indeed empty, and barfs
-# otherwise.
-
-test_must_be_empty () {
-	test_path_is_file "$1" &&
-	if test -s "$1"
-	then
-		echo "'$1' is not empty, it contains:"
-		cat "$1"
-		return 1
-	fi
-}
-
 # Tests that its two parameters refer to the same revision, or if '!' is
 # provided first, that its other two parameters refer to different
 # revisions.
@@ -1109,7 +924,7 @@ test_cmp_rev () {
 	fi
 	if test $# != 2
 	then
-		error "bug in the test script: test_cmp_rev requires two revisions, but got $#"
+		BUG "test_cmp_rev requires two revisions, but got $#"
 	else
 		local r1 r2
 		r1=$(git rev-parse --verify "$1") &&
@@ -1220,7 +1035,7 @@ test_atexit () {
 	# doing so on Bash is better than nothing (the test will
 	# silently pass on other shells).
 	test "${BASH_SUBSHELL-0}" = 0 ||
-	error "bug in test script: test_atexit does nothing in a subshell"
+	BUG "test_atexit does nothing in a subshell"
 	test_atexit_cleanup="{ $*
 		} && (exit \"\$eval_ret\"); eval_ret=\$?; $test_atexit_cleanup"
 }
@@ -1418,21 +1233,6 @@ test_match_signal () {
 	return 1
 }
 
-# Read up to "$1" bytes (or to EOF) from stdin and write them to stdout.
-test_copy_bytes () {
-	perl -e '
-		my $len = $ARGV[1];
-		while ($len > 0) {
-			my $s;
-			my $nread = sysread(STDIN, $s, $len);
-			die "cannot read: $!" unless defined($nread);
-			last unless $nread;
-			print $s;
-			$len -= $nread;
-		}
-	' - "$1"
-}
-
 # run "$@" inside a non-git directory
 nongit () {
 	test -d non-repo ||
@@ -1446,54 +1246,6 @@ nongit () {
 		"$@" 2>&7
 	)
 } 7>&2 2>&4
-
-# convert function arguments or stdin (if not arguments given) to pktline
-# representation. If multiple arguments are given, they are separated by
-# whitespace and put in a single packet. Note that data containing NULs must be
-# given on stdin, and that empty input becomes an empty packet, not a flush
-# packet (for that you can just print 0000 yourself).
-packetize () {
-	if test $# -gt 0
-	then
-		packet="$*"
-		printf '%04x%s' "$((4 + ${#packet}))" "$packet"
-	else
-		perl -e '
-			my $packet = do { local $/; <STDIN> };
-			printf "%04x%s", 4 + length($packet), $packet;
-		'
-	fi
-}
-
-# Parse the input as a series of pktlines, writing the result to stdout.
-# Sideband markers are removed automatically, and the output is routed to
-# stderr if appropriate.
-#
-# NUL bytes are converted to "\\0" for ease of parsing with text tools.
-depacketize () {
-	perl -e '
-		while (read(STDIN, $len, 4) == 4) {
-			if ($len eq "0000") {
-				print "FLUSH\n";
-			} else {
-				read(STDIN, $buf, hex($len) - 4);
-				$buf =~ s/\0/\\0/g;
-				if ($buf =~ s/^[\x2\x3]//) {
-					print STDERR $buf;
-				} else {
-					$buf =~ s/^\x1//;
-					print $buf;
-				}
-			}
-		}
-	'
-}
-
-# Converts base-16 data into base-8. The output is given as a sequence of
-# escaped octals, suitable for consumption by 'printf'.
-hex2oct () {
-	perl -ne 'printf "\\%03o", hex for /../g'
-}
 
 # Set the hash algorithm in use to $1.  Only useful when testing the testsuite.
 test_set_hash () {
@@ -1616,43 +1368,6 @@ test_set_port () {
 	# ports.
 	port=$(($port + ${GIT_TEST_STRESS_JOB_NR:-0}))
 	eval $var=$port
-}
-
-# Compare a file containing rev-list bitmap traversal output to its non-bitmap
-# counterpart. You can't just use test_cmp for this, because the two produce
-# subtly different output:
-#
-#   - regular output is in traversal order, whereas bitmap is split by type,
-#     with non-packed objects at the end
-#
-#   - regular output has a space and the pathname appended to non-commit
-#     objects; bitmap output omits this
-#
-# This function normalizes and compares the two. The second file should
-# always be the bitmap output.
-test_bitmap_traversal () {
-	if test "$1" = "--no-confirm-bitmaps"
-	then
-		shift
-	elif cmp "$1" "$2"
-	then
-		echo >&2 "identical raw outputs; are you sure bitmaps were used?"
-		return 1
-	fi &&
-	cut -d' ' -f1 "$1" | sort >"$1.normalized" &&
-	sort "$2" >"$2.normalized" &&
-	test_cmp "$1.normalized" "$2.normalized" &&
-	rm -f "$1.normalized" "$2.normalized"
-}
-
-# Tests for the hidden file attribute on Windows
-test_path_is_hidden () {
-	test_have_prereq MINGW ||
-	BUG "test_path_is_hidden can only be used on Windows"
-
-	# Use the output of `attrib`, ignore the absolute path
-	case "$("$SYSTEMROOT"/system32/attrib "$1")" in *H*?:*) return 0;; esac
-	return 1
 }
 
 # Check that the given command was invoked as part of the
