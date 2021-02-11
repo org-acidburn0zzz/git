@@ -86,7 +86,7 @@ test_expect_success 'rebase -i with empty todo list' '
 			git rebase -i HEAD^ >output 2>&1
 	) &&
 	tail -n 1 output >actual &&  # Ignore output about changing todo list
-	test_i18ncmp expect actual
+	test_cmp expect actual
 '
 
 test_expect_success 'rebase -i with the exec command' '
@@ -158,9 +158,9 @@ test_expect_success 'rebase -x with empty command fails' '
 	test_when_finished "git rebase --abort ||:" &&
 	test_must_fail env git rebase -x "" @ 2>actual &&
 	test_write_lines "error: empty exec command" >expected &&
-	test_i18ncmp expected actual &&
+	test_cmp expected actual &&
 	test_must_fail env git rebase -x " " @ 2>actual &&
-	test_i18ncmp expected actual
+	test_cmp expected actual
 '
 
 test_expect_success 'rebase -x with newline in command fails' '
@@ -168,7 +168,7 @@ test_expect_success 'rebase -x with newline in command fails' '
 	test_must_fail env git rebase -x "a${LF}b" @ 2>actual &&
 	test_write_lines "error: exec commands cannot contain newlines" \
 			 >expected &&
-	test_i18ncmp expected actual
+	test_cmp expected actual
 '
 
 test_expect_success 'rebase -i with exec of inexistent command' '
@@ -450,7 +450,7 @@ test_expect_success 'verbose flag is heeded, even after --continue' '
 	grep "^ file1 | 2 +-$" output
 '
 
-test_expect_success C_LOCALE_OUTPUT 'multi-squash only fires up editor once' '
+test_expect_success 'multi-squash only fires up editor once' '
 	base=$(git rev-parse HEAD~4) &&
 	(
 		set_fake_editor &&
@@ -463,7 +463,7 @@ test_expect_success C_LOCALE_OUTPUT 'multi-squash only fires up editor once' '
 	test 1 = $(git show | grep ONCE | wc -l)
 '
 
-test_expect_success C_LOCALE_OUTPUT 'multi-fixup does not fire up editor' '
+test_expect_success 'multi-fixup does not fire up editor' '
 	git checkout -b multi-fixup E &&
 	base=$(git rev-parse HEAD~4) &&
 	(
@@ -514,7 +514,7 @@ test_expect_success 'commit message retained after conflict' '
 	git branch -D conflict-squash
 '
 
-test_expect_success C_LOCALE_OUTPUT 'squash and fixup generate correct log messages' '
+test_expect_success 'squash and fixup generate correct log messages' '
 	cat >expect-squash-fixup <<-\EOF &&
 	B
 
@@ -541,7 +541,7 @@ test_expect_success C_LOCALE_OUTPUT 'squash and fixup generate correct log messa
 	git branch -D squash-fixup
 '
 
-test_expect_success C_LOCALE_OUTPUT 'squash ignores comments' '
+test_expect_success 'squash ignores comments' '
 	git checkout -b skip-comments E &&
 	base=$(git rev-parse HEAD~4) &&
 	(
@@ -557,7 +557,7 @@ test_expect_success C_LOCALE_OUTPUT 'squash ignores comments' '
 	git branch -D skip-comments
 '
 
-test_expect_success C_LOCALE_OUTPUT 'squash ignores blank lines' '
+test_expect_success 'squash ignores blank lines' '
 	git checkout -b skip-blank-lines E &&
 	base=$(git rev-parse HEAD~4) &&
 	(
@@ -995,7 +995,7 @@ test_expect_success 'rebase -ix with several instances of --exec' '
 	test_cmp expected actual
 '
 
-test_expect_success C_LOCALE_OUTPUT 'rebase -ix with --autosquash' '
+test_expect_success 'rebase -ix with --autosquash' '
 	git reset --hard execute &&
 	git checkout -b autosquash &&
 	echo second >second.txt &&
@@ -1136,7 +1136,7 @@ test_expect_success 'rebase -i --root reword root when root has untracked file c
 	test "$(git rev-list --count HEAD)" = 2
 '
 
-test_expect_success C_LOCALE_OUTPUT 'rebase --edit-todo does not work on non-interactive rebase' '
+test_expect_success 'rebase --edit-todo does not work on non-interactive rebase' '
 	git checkout reword-original-root-branch &&
 	git reset --hard &&
 	git checkout conflict-branch &&
@@ -1465,7 +1465,7 @@ test_expect_success 'rebase -i respects rebase.missingCommitsCheck = warn' '
 		FAKE_LINES="1 2 3 4" git rebase -i --root 2>actual.2
 	) &&
 	head -n4 actual.2 >actual &&
-	test_i18ncmp expect actual &&
+	test_cmp expect actual &&
 	test D = $(git cat-file commit HEAD | sed -ne \$p)
 '
 
@@ -1489,7 +1489,7 @@ test_expect_success 'rebase -i respects rebase.missingCommitsCheck = error' '
 		set_fake_editor &&
 		test_must_fail env FAKE_LINES="1 2 4" \
 			git rebase -i --root 2>actual &&
-		test_i18ncmp expect actual &&
+		test_cmp expect actual &&
 		cp .git/rebase-merge/git-rebase-todo.backup \
 			.git/rebase-merge/git-rebase-todo &&
 		FAKE_LINES="1 2 drop 3 4 drop 5" git rebase --edit-todo
@@ -1535,11 +1535,11 @@ test_expect_success 'rebase --edit-todo respects rebase.missingCommitsCheck = wa
 		cp .git/rebase-merge/git-rebase-todo.backup orig &&
 		FAKE_LINES="2 3 4" git rebase --edit-todo 2>actual.2 &&
 		head -n6 actual.2 >actual &&
-		test_i18ncmp expect actual &&
+		test_cmp expect actual &&
 		cp orig .git/rebase-merge/git-rebase-todo &&
 		FAKE_LINES="1 2 3 4" git rebase --edit-todo 2>actual.2 &&
 		head -n4 actual.2 >actual &&
-		test_i18ncmp expect.3 actual &&
+		test_cmp expect.3 actual &&
 		git rebase --continue 2>actual
 	) &&
 	test D = $(git cat-file commit HEAD | sed -ne \$p) &&
@@ -1575,16 +1575,16 @@ test_expect_success 'rebase --edit-todo respects rebase.missingCommitsCheck = er
 		cp .git/rebase-merge/git-rebase-todo.backup orig &&
 		test_must_fail env FAKE_LINES="2 3 4" \
 			git rebase --edit-todo 2>actual &&
-		test_i18ncmp expect actual &&
+		test_cmp expect actual &&
 		test_must_fail git rebase --continue 2>actual &&
-		test_i18ncmp expect.2 actual &&
+		test_cmp expect.2 actual &&
 		test_must_fail git rebase --edit-todo &&
 		cp orig .git/rebase-merge/git-rebase-todo &&
 		test_must_fail env FAKE_LINES="1 2 3 4" \
 			git rebase --edit-todo 2>actual &&
-		test_i18ncmp expect.3 actual &&
+		test_cmp expect.3 actual &&
 		test_must_fail git rebase --continue 2>actual &&
-		test_i18ncmp expect.3 actual &&
+		test_cmp expect.3 actual &&
 		cp orig .git/rebase-merge/git-rebase-todo &&
 		FAKE_LINES="1 2 3 4 drop 5" git rebase --edit-todo &&
 		git rebase --continue 2>actual
