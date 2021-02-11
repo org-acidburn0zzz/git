@@ -4,6 +4,7 @@
 #include "parse-options.h"
 #include "midx.h"
 #include "trace2.h"
+#include "object-store.h"
 
 static char const * const builtin_multi_pack_index_usage[] = {
 	N_("git multi-pack-index [<options>] (write|verify|expire|repack --batch-size=<size>)"),
@@ -12,6 +13,7 @@ static char const * const builtin_multi_pack_index_usage[] = {
 
 static struct opts_multi_pack_index {
 	const char *object_dir;
+	const char *preferred_pack;
 	unsigned long batch_size;
 	int progress;
 } opts;
@@ -24,6 +26,8 @@ int cmd_multi_pack_index(int argc, const char **argv,
 	static struct option builtin_multi_pack_index_options[] = {
 		OPT_FILENAME(0, "object-dir", &opts.object_dir,
 		  N_("object directory containing set of packfile and pack-index pairs")),
+		OPT_STRING(0, "preferred-pack", &opts.preferred_pack, N_("preferred-pack"),
+		  N_("pack for reuse when computing a multi-pack bitmap")),
 		OPT_BOOL(0, "progress", &opts.progress, N_("force progress reporting")),
 		OPT_MAGNITUDE(0, "batch-size", &opts.batch_size,
 		  N_("during repack, collect pack-files of smaller size into a batch that is larger than this size")),
@@ -51,6 +55,9 @@ int cmd_multi_pack_index(int argc, const char **argv,
 		return 1;
 	}
 
+	if (strcmp(argv[0], "write") && opts.preferred_pack)
+		die(_("'--preferred-pack' requires 'write'"));
+
 	trace2_cmd_mode(argv[0]);
 
 	if (!strcmp(argv[0], "repack"))
@@ -60,7 +67,8 @@ int cmd_multi_pack_index(int argc, const char **argv,
 		die(_("--batch-size option is only for 'repack' subcommand"));
 
 	if (!strcmp(argv[0], "write"))
-		return write_midx_file(opts.object_dir, flags);
+		return write_midx_file(opts.object_dir, opts.preferred_pack,
+				       flags);
 	if (!strcmp(argv[0], "verify"))
 		return verify_midx_file(the_repository, opts.object_dir, flags);
 	if (!strcmp(argv[0], "expire"))

@@ -379,3 +379,86 @@ CHUNK DATA:
 TRAILER:
 
 	Index checksum of the above contents.
+
+== multi-pack-index reverse indexes
+
+Similar to the pack-based reverse index, the multi-pack index can also
+be used to generate a reverse index.
+
+Instead of mapping between offset, pack-, and index position, this
+reverse index maps between an object's position within the midx, and
+that object's position within a pseudo-pack that the midx describes.
+Crucially, the objects' positions within this pseudo-pack are the same
+as their bit positions in a multi-pack reachability bitmap.
+
+As a motivating example, consider the multi-pack reachability bitmap
+(which does not yet exist, but is what we are building towards here). We
+need each bit to correspond to an object covered by the midx, and we
+need to be able to convert bit positions back to index positions (from
+which we can get the oid, etc).
+
+One solution is to let each bit position in the index correspond to
+the same position in the oid-sorted index stored by the midx. But
+because oids are effectively random, there resulting reachability
+bitmaps would have no locality, and thus compress poorly. (This is the
+reason that single-pack bitmaps use the pack ordering, and not the .idx
+ordering, for the same purpose.)
+
+So we'd like to define an ordering for the whole midx based around
+pack ordering. We can think of it as a pseudo-pack created by the
+concatenation of all of the packs in the midx. E.g., if we had a midx
+with three packs (a, b, c), with 10, 15, and 20 objects respectively, we
+can imagine an ordering of the objects like:
+
+    |a,0|a,1|...|a,9|b,0|b,1|...|b,14|c,0|c,1|...|c,19|
+
+where the ordering of the packs is defined by the midx's pack list,
+and then the ordering of objects within each pack is the same as the
+order in the actual packfile.
+
+Given the list of packs and their counts of objects, you can
+na&iuml;vely reconstruct that pseudo-pack ordering (e.g., the object at
+position 27 must be (c,1) because packs "a" and "b" consumed 25 of the
+slots). But there's a catch. Objects may be duplicated between packs, in
+which case the midx only stores one pointer to the object (and thus we'd
+want only one slot in the bitmap).
+
+Callers could handle duplicates themselves by reading objects in order
+of their bit-position, but that's linear in the number of objects, and
+much too expensive for ordinary bitmap lookups. Building a reverse index
+solves this, since it is the logical inverse of the index, and that
+index has already removed duplicates. But, building a reverse index on
+the fly can be expensive. Since we already have an on-disk format for
+pack-based reverse indexes, let's reuse it for the midx's pseudo-pack,
+too.
+
+Objects from the midx are ordered as follows to string together the
+pseudo-pack. Let _pack(o)_ return the pack from which _o_ was selected
+by the midx, and define an ordering of packs based on their numeric ID
+(as stored by the midx). Let _offset(o)_ return the object offset of _o_
+within _pack(o)_. Then, compare _o~1~_ and _o~2~_ as follows:
+
+  - If one of _pack(o~1~)_ and _pack(o~2~)_ is preferred and the other
+    is not, then the preferred one sorts first.
++
+(This is a detail that allows the midx bitmap to determine which
+pack should be used by the pack-reuse mechanism, since it can ask
+the midx for the pack containing the object at bit position 0).
+
+  - If _pack(o~1~) &ne; pack(o~2~)_, then sort the two objects in
+    descending order based on the pack ID.
+
+  - Otherwise, _pack(o~1~) &equals; pack(o~2~)_, and the objects are
+    sorted in pack-order (i.e., _o~1~_ sorts ahead of _o~2~_ exactly
+    when _offset(o~1~) &lt; offset(o~2~)_).
+
+In short, a midx's pseudo-pack is the de-duplicated concatenation of
+objects in packs stored by the midx, laid out in pack order, and the
+packs arranged in midx order (with the preferred pack coming first).
+
+Finally, note that the midx's reverse index is not stored as a chunk in
+the multi-pack-index itself. This is done because the reverse index
+includes the checksum of the pack or midx to which it belongs, which
+makes it impossible to write in the midx. To avoid races when rewriting
+the midx, a midx reverse index includes the midx's checksum in its
+filename (e.g., `multi-pack-index-xyz.rev`).

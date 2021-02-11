@@ -4,7 +4,7 @@
 #include "repository.h"
 #include "object-store.h"
 
-static int read_midx_file(const char *object_dir)
+static int read_midx_file(const char *object_dir, int show_objects)
 {
 	uint32_t i;
 	struct multi_pack_index *m;
@@ -14,6 +14,20 @@ static int read_midx_file(const char *object_dir)
 
 	if (!m)
 		return 1;
+
+	if (show_objects) {
+		struct object_id oid;
+		struct pack_entry e;
+
+		for (i = 0; i < m->num_objects; i++) {
+			nth_midxed_object_oid(&oid, m, i);
+			fill_midx_entry(the_repository, &oid, &e, m);
+
+			printf("%s %"PRIu64"\t%s\n",
+			       oid_to_hex(&oid), e.offset, e.p->pack_name);
+		}
+		return 0;
+	}
 
 	printf("header: %08x %d %d %d %d\n",
 	       m->signature,
@@ -48,8 +62,10 @@ static int read_midx_file(const char *object_dir)
 
 int cmd__read_midx(int argc, const char **argv)
 {
-	if (argc != 2)
-		usage("read-midx <object-dir>");
+	if (!(argc == 2 || argc == 3))
+		usage("read-midx [--show-objects] <object-dir>");
 
-	return read_midx_file(argv[1]);
+	if (!strcmp(argv[1], "--show-objects"))
+		return read_midx_file(argv[2], 1);
+	return read_midx_file(argv[1], 0);
 }
