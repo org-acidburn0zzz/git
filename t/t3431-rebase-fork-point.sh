@@ -77,4 +77,14 @@ test_expect_success 'git rebase --fork-point with ambigous refname' '
 	test_must_fail git rebase --fork-point --onto D one
 '
 
+test_expect_success '--fork-point and --root both given' '
+	test_must_fail git rebase --fork-point --root 2>err &&
+	test_i18ngrep "cannot combine" err
+'
+
+test_expect_success 'rebase.forkPoint true and --root given' '
+	test_config rebase.forkPoint true &&
+	git rebase --root
+'
+
 test_done
