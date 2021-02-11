@@ -1276,6 +1276,11 @@ int fsck_error_function(struct fsck_options *o,
 	return 1;
 }
 
+void register_found_gitmodules(const struct object_id *oid)
+{
+	oidset_insert(&gitmodules_found, oid);
+}
+
 int fsck_finish(struct fsck_options *options)
 {
 	int ret = 0;
@@ -1295,10 +1300,13 @@ int fsck_finish(struct fsck_options *options)
 		if (!buf) {
 			if (is_promisor_object(oid))
 				continue;
-			ret |= report(options,
-				      oid, OBJ_BLOB,
-				      FSCK_MSG_GITMODULES_MISSING,
-				      "unable to read .gitmodules blob");
+			if (options->print_dangling_gitmodules)
+				printf("%s\n", oid_to_hex(oid));
+			else
+				ret |= report(options,
+					      oid, OBJ_BLOB,
+					      FSCK_MSG_GITMODULES_MISSING,
+					      "unable to read .gitmodules blob");
 			continue;
 		}
 

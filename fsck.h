@@ -41,6 +41,12 @@ struct fsck_options {
 	int *msg_type;
 	struct oidset skiplist;
 	kh_oid_map_t *object_names;
+
+	/*
+	 * If 1, print the hashes of missing .gitmodules blobs instead of
+	 * considering them to be errors.
+	 */
+	unsigned print_dangling_gitmodules:1;
 };
 
 #define FSCK_OPTIONS_DEFAULT { NULL, fsck_error_function, 0, NULL, OIDSET_INIT }
@@ -61,6 +67,8 @@ int fsck_walk(struct object *obj, void *data, struct fsck_options *options);
  */
 int fsck_object(struct object *obj, void *data, unsigned long size,
 	struct fsck_options *options);
+
+void register_found_gitmodules(const struct object_id *oid);
 
 /*
  * fsck a tag, and pass info about it back to the caller. This is

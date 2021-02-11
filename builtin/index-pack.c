@@ -1932,8 +1932,13 @@ int cmd_index_pack(int argc, const char **argv, const char *prefix)
 	else
 		close(input_fd);
 
-	if (do_fsck_object && fsck_finish(&fsck_options))
-		die(_("fsck error in pack objects"));
+	if (do_fsck_object) {
+		struct fsck_options fo = FSCK_OPTIONS_STRICT;
+
+		fo.print_dangling_gitmodules = 1;
+		if (fsck_finish(&fo))
+			die(_("fsck error in pack objects"));
+	}
 
 	free(objects);
 	strbuf_release(&index_name_buf);
